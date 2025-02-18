@@ -114,14 +114,24 @@ function _log() {
 
 function _callback(result, errorCode, errorMessage) {
   if (errorCode != 0) {
+    // not _log: always report actual errors
     console.log('call failed: ', errorCode, errorMessage);
   }
 }
 
-function _updateSwitchTimestamp() {
+function _getSwitchTimestamp() {
   // not every notification include a timestamp (`delta`'s don't)
   // https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Sys#status
   currentTime = Shelly.getComponentStatus('Sys').unixtime;
+}
+
+// 'init' switch state when the script is starting up with no or constant load
+function _getSwitchState() {
+  var status = Shelly.getComponentStatus('Switch', CONFIG.switchId);
+  _log('_getSwitchState status=', JSON.stringify(status));
+  switchState.output = status.output;
+  switchState.apower = status.apower;
+  switchState.timer = currentTime;
 }
 
 // update switch state with current output state (on/off)
@@ -129,7 +139,7 @@ function _updateSwitchOutput(notifyStatus) {
   var output = _get(notifyStatus, 'delta.output');
   if (!_defined(output)) return;  // not a delta.output update
   _log('_updateSwitchOutput output=', JSON.stringify(output));
-  // reset timer when turning on ('on/off edge transition')
+  // reset the timer when turning on ('on/off edge transition')
   // !== true is not necessarily === false (e.g. on init, where output is null);
   // just want to determine a _change_
   if (output === true && switchState.output !== output) {
@@ -170,22 +180,31 @@ function statusHandler(notifyStatus) {
   if (notifyStatus.component !== 'switch:' + CONFIG.switchId) return;
   //_log(JSON.stringify(notifyStatus));
 
-  _updateSwitchTimestamp();
+  _getSwitchTimestamp();
   // the notification will be _one of_: an `output` notification, an `apower`
   // notification, or 'something else'
   // - some notifications may include both switch `output` and `apower` info
   //   (e.g. when a switch is turned on), this could be leveraged to eliminate
   //   some processing but for the sake of simplicity we'll KISS
-  // - when starting up with a constant load output (incl. 0), we won't get any
-  //   `delta` notifications (only hearbeats)
   _updateSwitchPower(notifyStatus);
   _updateSwitchOutput(notifyStatus);
 
-  if (switchState.output === true) { // on
-    _log('on p=', switchState.apower, ' dt=', currentTime - switchState.timer);
-    if (_isPowerIdle() && _isTimeExpired()) {
-      Shelly.call('Switch.Set', { id: CONFIG.switchId, on: false }, _callback);
-    }
+  switch (switchState.output) { // JS switch uses strict equality
+    case true:  // on
+      _log('on p=', switchState.apower, ' dt=', currentTime - switchState.timer);
+      if (_isPowerIdle() && _isTimeExpired()) {
+        _log('idle, timer expired: turning off');
+        Shelly.call('Switch.Set', { id: CONFIG.switchId, on: false }, _callback);
+      }
+    break;
+    case false: // off; nothing to do
+      break;
+    default:
+      // when the script starts up with a constant load output (incl. 0), we won't
+      // see any `delta.output` or `delta.apower` notifications (only
+      // hearbeats), have to "manually" get the current state
+      // this should happen only once; no need to invoke on every iteration
+      _getSwitchState();
   }
   _log(JSON.stringify(switchState));
 }
