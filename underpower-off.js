@@ -33,6 +33,8 @@ off.
 A simpler use case could be a machine that for safety reasons it is desired to
 also turn off the outlet once the machine itself has been turned off / stopped.
 
+Ref. https://af3556.github.io/posts/shelly-scripting-part1/
+
 ## Script Design
 
 This script:
