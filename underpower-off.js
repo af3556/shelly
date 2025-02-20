@@ -125,7 +125,8 @@ function _getSwitchTimestamp() {
   currentTime = Shelly.getComponentStatus('Sys').unixtime;
 }
 
-// 'init' switch state when the script is starting up with no or constant load
+// 'init' switch state when the script is starting up with no or constant load,
+// where statusHandler hasn't been called for the switch yet
 function _getSwitchState() {
   var status = Shelly.getComponentStatus('Switch', CONFIG.switchId);
   _log('_getSwitchState status=', JSON.stringify(status));
