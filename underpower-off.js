@@ -88,7 +88,7 @@ function _logWrite() {
   // Shelly doesn't do array.shift (!), splice instead
   if (_logQueue.queue.length > 0) {
     // include a 'tag' in the log messages for easier filtering
-    console.log('[thecount]', _logQueue.queue.splice(0, 1)[0]);
+    console.log('[underpower-off]', _logQueue.queue.splice(0, 1)[0]);
   }
 }
 
