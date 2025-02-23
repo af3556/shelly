@@ -52,7 +52,7 @@ This script:
 // - switch IDs are 0-based (i.e. 0-3 for the Pro4PM) though they're labelled on
 //   the device as 1-4
 var CONFIG = {
-  switchId: 1,    // switch to monitor
+  switchId: 0,    // switch to monitor
   threshold: 10,  // idle threshold (Watts)
   timeout: 30,    // timeout timeout (seconds) (rounded up to heartbeat timeout)
   log: true       // enable/disable logging
@@ -76,6 +76,32 @@ var switchState = {
 
 var currentTime = 0;  // not every notification has a timestamp, have to DIY
 
+// rate limit console.log messages to the given interval
+var _logQueue = {
+  queue: [],      // queued messages
+  maxSize: 20,    // limit the size of the queue
+  interval: 100   // interval, ms
+}
+
+// dequeue one message; intended to be called via a Timer
+function _logWrite() {
+  // Shelly doesn't do array.shift (!), splice instead
+  if (_logQueue.queue.length > 0) {
+    // include a 'tag' in the log messages for easier filtering
+    console.log('[thecount]', _logQueue.queue.splice(0, 1)[0]);
+  }
+}
+
+function _log() {
+  // Shelly doesn't support the spread operator `...`
+  // workaround: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/arguments
+  if (!CONFIG.log) return;
+  if (_logQueue.queue.length < _logQueue.maxSize) {
+    _logQueue.queue.push(arguments.join(' '));
+  } else {
+    console.log('_log: overflow!!'); // you may or may not actually get to see this
+  }
+}
 
 function _defined(v) {
   return v !== undefined && v !== null;
@@ -104,12 +130,6 @@ function _get(obj, path) {
     }
   }
   return current;
-}
-
-function _log() {
-  // Shelly doesn't support the spread operator `...`
-  // workaround: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/arguments
-  if (CONFIG.log) console.log('[underpower-off]', arguments.join(' '));
 }
 
 function _callbackLogError(result, errorCode, errorMessage) {
@@ -209,4 +229,13 @@ function statusHandler(notifyStatus) {
   _log(JSON.stringify(switchState));
 }
 
-Shelly.addStatusHandler(statusHandler);
+function init() {
+  if (CONFIG.log) {
+    // set up the log timer; this burns a relatively precious resource but
+    // could easily be moved to an existing timer callback
+    Timer.set(_logQueue.interval, true, _logWrite);
+  }
+  Shelly.addStatusHandler(statusHandler);
+}
+
+init();
