@@ -112,7 +112,7 @@ function _log() {
   if (CONFIG.log) console.log('[underpower-off]', arguments.join(' '));
 }
 
-function _callback(result, errorCode, errorMessage) {
+function _callbackLogError(result, errorCode, errorMessage) {
   if (errorCode != 0) {
     // not _log: always report actual errors
     console.log('call failed: ', errorCode, errorMessage);
@@ -167,8 +167,7 @@ function _updateSwitchPower(notifyStatus) {
   }
 }
 
-function _isTimeExpired()
-{
+function _isTimeExpired() {
   return currentTime - switchState.timer > CONFIG.timeout;
 }
 function _isPowerIdle() {
@@ -195,9 +194,9 @@ function statusHandler(notifyStatus) {
       _log('on p=', switchState.apower, ' dt=', currentTime - switchState.timer);
       if (_isPowerIdle() && _isTimeExpired()) {
         _log('idle, timer expired: turning off');
-        Shelly.call('Switch.Set', { id: CONFIG.switchId, on: false }, _callback);
+        Shelly.call('Switch.Set', { id: CONFIG.switchId, on: false }, _callbackLogError);
       }
-    break;
+      break;
     case false: // off; nothing to do
       break;
     default:
