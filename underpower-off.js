@@ -103,7 +103,7 @@ function _log() {
   }
 }
 
-function _defined(v) {
+function _notnullish(v) {
   return v !== undefined && v !== null;
 }
 
@@ -158,7 +158,7 @@ function _getSwitchState() {
 // update switch state with current output state (on/off)
 function _updateSwitchOutput(notifyStatus) {
   var output = _get(notifyStatus, 'delta.output');
-  if (!_defined(output)) return;  // not a delta.output update
+  if (!_notnullish(output)) return;  // not a delta.output update
   _log('_updateSwitchOutput output=', JSON.stringify(output));
   // reset the timer when turning on ('on/off edge transition')
   // !== true is not necessarily === false (e.g. on init, where output is null);
@@ -175,7 +175,7 @@ function _updateSwitchPower(notifyStatus) {
   // `delta.apower` notifications are sent on load changes _and_ switch output
   // state changes (even when power remains 0)
   var apower = _get(notifyStatus, 'delta.apower');
-  if (!_defined(apower)) return;  // not a delta.apower update
+  if (!_notnullish(apower)) return;  // not a delta.apower update
   _log('_updateSwitchPower apower=', JSON.stringify(apower));
   // reset the timer on power idle edge transition; when going from not-idle to
   // idle
