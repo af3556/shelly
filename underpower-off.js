@@ -140,12 +140,6 @@ function _callbackLogError(result, errorCode, errorMessage) {
   }
 }
 
-function _getSwitchTimestamp() {
-  // https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Sys#status
-  // use uptime and not unixtime; the latter won't be available without NTP
-  currentTime = Shelly.getComponentStatus('Sys').uptime;
-}
-
 // 'init' switch state when the script is starting up with no or constant load,
 // where statusHandler hasn't been called for the switch yet
 function _getSwitchState() {
@@ -201,7 +195,10 @@ function statusHandler(notifyStatus) {
   if (notifyStatus.component !== 'switch:' + CONFIG.switchId) return;
   //_log(JSON.stringify(notifyStatus));
 
-  _getSwitchTimestamp();
+  // https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Sys#status
+  // use uptime and not unixtime; the latter won't be available without NTP
+  currentTime = Shelly.getComponentStatus('Sys').uptime;
+
   // the notification will be _one of_: an `output` notification, an `apower`
   // notification, or 'something else'
   // - some notifications may include both switch `output` and `apower` info
