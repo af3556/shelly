@@ -74,7 +74,8 @@ var switchState = {
   timer: 0        // timestamp of last on or idle transition
 }
 
-var currentTime = 0;  // not every notification has a timestamp, have to DIY
+// use uptime as the epoch (it's always available; unixtime requires NTP)
+var currentTime = 0;
 
 // rate limit console.log messages to the given interval
 var _logQueue = {
@@ -140,9 +141,9 @@ function _callbackLogError(result, errorCode, errorMessage) {
 }
 
 function _getSwitchTimestamp() {
-  // not every notification include a timestamp (`delta`'s don't)
   // https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Sys#status
-  currentTime = Shelly.getComponentStatus('Sys').unixtime;
+  // use uptime and not unixtime; the latter won't be available without NTP
+  currentTime = Shelly.getComponentStatus('Sys').uptime;
 }
 
 // 'init' switch state when the script is starting up with no or constant load,
