@@ -21,8 +21,10 @@ var CONFIG = {
 // potential for spamming the notification service
 var _notifyQueue = {
   queue: [],          // queued messages
-  maxSize: 5,         // limit the size of the queue
-  interval: 10        // minimum interval (seconds)
+  maxSize: 10,        // limit the size of the queue
+  // allow the message rate to burst a little (proportional to the queue length)
+  notifyIntervalMin: 0,   // minimum interval (seconds)
+  notifyIntervalMax: 20   // maximum interval (seconds)
 }
 
 // dequeue one notification and if necessary schedule the next one-shot timer
@@ -34,7 +36,7 @@ function _notifyWrite(byTimer) {
   // other should be in play at any given invocation
   // it's unclear what guarantees Shelly's Timer provides around timing of a
   // callback: it may well be possible that a callback is called prematurely
-  // i.e. where _notifyQueue.interval - (t - _lastMessageTime) > 0
+  // i.e. where interval - (t - _lastMessageTime) > 0
   // to sidestep that entire problem the byTimer argument is used and set true
   // (only) when called via Timer
 
@@ -46,7 +48,11 @@ function _notifyWrite(byTimer) {
   // use uptime and not unixtime; the latter won't be available without NTP
   var t = Shelly.getComponentStatus('Sys').uptime;
   // how long is left to wait?
-  var remaining = _notifyQueue.interval - (t - _lastMessageTime);
+  // - interval is proportional to queue length
+  var interval = ((_notifyQueue.notifyIntervalMax - _notifyQueue.notifyIntervalMin) *
+    (_notifyQueue.queue.length / _notifyQueue.maxSize)) + _notifyQueue.notifyIntervalMin;
+
+  var remaining = interval - (t - _lastMessageTime);  // time until interval expires
 
   if (byTimer || remaining < 0) { // go, go gadget
     //console.log('_notifyWrite by', (byTimer ? 'timer' : 'flush:' + remaining),
@@ -56,7 +62,7 @@ function _notifyWrite(byTimer) {
     if (_notifyQueue.queue.length > 0) {
       postNotification(_notifyQueue.queue.splice(0, 1)[0]);
       _lastMessageTime = t;
-      remaining = _notifyQueue.interval;
+      remaining = interval;
     }
   }
 
@@ -66,10 +72,11 @@ function _notifyWrite(byTimer) {
     if (_timerHandle) Timer.clear(_timerHandle);
   } else if (!_timerHandle) {
     // there's more to come yet no timer in play -> schedule the next callback
-    // time remaining should be in the range [0, _notifyQueue.interval]
-    var interval = Math.max(0, Math.min(remaining, _notifyQueue.interval));
-    //console.log('_notifyWrite', interval, 'qlen=' + _notifyQueue.queue.length);
-    _timerHandle = Timer.set(interval * 1000, false, _notifyWrite, true);
+    // time remaining should be in the range [0, interval]
+    var newinterval = Math.max(0, Math.min(remaining, interval));
+    console.log('_notifyWrite', newinterval + '/' + interval,
+      'qlen=' + _notifyQueue.queue.length);
+    _timerHandle = Timer.set(newinterval * 1000, false, _notifyWrite, true);
   }
 }
 
@@ -88,7 +95,7 @@ function _notify() {
     // delete the 0'th message, (attempt to) report it
     console.log('_notify overflow:', JSON.stringify(_notifyQueue.queue.splice(0, 1)[0]));
   }
-  _notifyQueue.queue.push(message + '\n' + _sequenceNumber++);
+  _notifyQueue.queue.push(message + '\nid:' + _sequenceNumber++);
   _notifyWrite(); // service the queue if possible (attempt a write 'asap')
 }
 
