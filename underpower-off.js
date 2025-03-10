@@ -41,20 +41,27 @@ This script:
 
 1. tracks switch state in a global object that is updated as each new piece of
    information arrives via the various Shelly notifications
-   - including recording the time of entering 'idle state' (required for a
-     timeout)
+   - including recording the time of entering 'idle state'
 2. turns the output off when the idle state and timeout conditions are met
-
 
 */
 
 // configure these as desired:
 // - switch IDs are 0-based (i.e. 0-3 for the Pro4PM) though they're labelled on
 //   the device as 1-4
+// - a timeout of 0 would technically not work: Shelly reports the switch
+//   turning on and the load current as two separate events (which switch state
+//   first), so the moment a switch is turned the load is likely to be zero; the
+//   fix is to defer the decision until after at least one power notification
+//   has arrived (i.e. when we do have all the necessary info)
+//   - this is represented as an output state of 'waiting'
+//   - an alternative approach would be to just hard-code a minimum period but
+//     there's no guarantee when a power update will arrive and it's usually
+//     >7-8s for the Pro4PM
 var CONFIG = {
   switchId: 0,    // switch to monitor
-  threshold: 10,  // idle threshold (Watts)
-  timeout: 30,    // timeout timeout (seconds) (rounded up to heartbeat timeout)
+  threshold: 50,  // idle threshold (Watts)
+  timeout: 0,     // timeout (seconds) (0 = ASAP)
   log: true       // enable/disable logging
 }
 
@@ -69,7 +76,7 @@ var CONFIG = {
 // - an alternative approach could just query all the necessary bits every
 //   callback, but where's the fun in that #efficiency
 var switchState = {
-  output: null,   // last known switch output State
+  output: null,   // last known switch output State (null, true, false, 'waiting')
   apower: 0,      // last known `apower` reading
   timer: 0        // timestamp of last on or idle transition
 }
@@ -155,12 +162,16 @@ function _updateSwitchOutput(notifyStatus) {
   var output = _get(notifyStatus, 'delta.output');
   if (!_notnullish(output)) return;  // not a delta.output update
   _log('_updateSwitchOutput output=', JSON.stringify(output));
-  // reset the timer when turning on ('on/off edge transition')
+
   // !== true is not necessarily === false (e.g. on init, where output is null);
   // just want to determine a _change_
-  if (output === true && switchState.output !== output) {
-    _log('_updateSwitchOutput reset timer');
-    switchState.timer = currentTime;
+  if (switchState.output !== output) {    // an edge transition
+    // reset the timer when turning on ('on/off edge transition')
+    if (output === true) {  // was off, now on
+      _log('_updateSwitchOutput reset timer (and waiting for power update)');
+      switchState.timer = currentTime;
+      output = 'waiting'; // await an apower notification
+    }
   }
   switchState.output = output;
 }
@@ -172,18 +183,23 @@ function _updateSwitchPower(notifyStatus) {
   var apower = _get(notifyStatus, 'delta.apower');
   if (!_notnullish(apower)) return;  // not a delta.apower update
   _log('_updateSwitchPower apower=', JSON.stringify(apower));
-  // reset the timer on power idle edge transition; when going from not-idle to
-  // idle
   var idlePrev = _isPowerIdle();
   switchState.apower = apower;
-  if (idlePrev === false && _isPowerIdle() !== idlePrev) {
-    _log('_updateSwitchPower reset timer');
-    switchState.timer = currentTime;
+
+  if (_isPowerIdle() !== idlePrev) {   // an edge transition
+    if (idlePrev === false) {
+      // reset the idle timer on transition from not-idle to idle
+      _log('_updateSwitchPower reset timer');
+      switchState.timer = currentTime;
+    } else {
+      _log('_updateSwitchPower no longer waiting');
+      switchState.output = true; // would have been 'waiting'
+    }
   }
 }
 
 function _isTimeExpired() {
-  return currentTime - switchState.timer > CONFIG.timeout;
+  return currentTime - switchState.timer >= CONFIG.timeout;
 }
 function _isPowerIdle() {
   return switchState.apower < CONFIG.threshold;
@@ -215,6 +231,8 @@ function statusHandler(notifyStatus) {
         Shelly.call('Switch.Set', { id: CONFIG.switchId, on: false }, _callbackLogError);
       }
       break;
+    case 'waiting':
+      // fall through
     case false: // off; nothing to do
       break;
     default:
