@@ -80,7 +80,7 @@ Aside on Low Power Loads
 //   ('always on') and switch ID 0 (label: 1) the first to be turned off
 //   - if a switch is omitted it won't be considered in any part of the calcs
 var CONFIG = {
-  switchPriority: [3, 0, 1, 2], // switches to monitor
+  switchPriority: [3, 1, 0, 2], // switches to monitor
   currentMax: 15,               // aim to keep the sum total below this level
   httpNtfyURL: 'https://ntfy.sh/shelly-loadshed',
   httpNtfyHeaders: {            // static headers, incl. auth if required
@@ -137,8 +137,10 @@ var _logQueue = {
 // potential for spamming the notification service
 var _notifyQueue = {
   queue: [],          // queued messages
-  maxSize: 5,         // limit the size of the queue
-  interval: 20        // interval (seconds)
+  maxSize: 10,        // limit the size of the queue
+  // allow the message rate to burst a little (proportional to the queue length)
+  notifyIntervalMin: 0,   // minimum interval (seconds)
+  notifyIntervalMax: 20   // maximum interval (seconds)
 }
 
 // dequeue one message; intended to be called via a Timer
@@ -176,7 +178,10 @@ function _log() {
 // keep it 'primed' for the minimum notification interval
 function _notifyWrite(byTimer) {
   currentTime = Shelly.getComponentStatus('Sys').uptime;
-  var remaining = _notifyQueue.interval - (currentTime - _lastNotificationTime);
+  // - interval is proportional to queue length
+  var interval = ((_notifyQueue.notifyIntervalMax - _notifyQueue.notifyIntervalMin) *
+    (_notifyQueue.queue.length / _notifyQueue.maxSize)) + _notifyQueue.notifyIntervalMin;
+  var remaining = interval - (currentTime - _lastNotificationTime);
   if (byTimer || remaining < 0) { // go, go gadget
     //_log('_notifyWrite by', (byTimer ? 'timer' : 'flush:' + remaining),
     //  'qlen=' + _notifyQueue.queue.length);
@@ -185,17 +190,16 @@ function _notifyWrite(byTimer) {
     if (_notifyQueue.queue.length > 0) {
       postNotification(_notifyQueue.queue.splice(0, 1)[0]);
       _lastNotificationTime = currentTime;
-      remaining = _notifyQueue.interval;
+      remaining = interval;
     }
   }
 
-  // time remaining should be in the range [0, _notifyQueue.interval] (seconds)
-  // (0 if we juuust missed sending a notification; _notifyQueue.interval if
+  // time remaining should be in the range [0, interval] (seconds)
+  // (0 if we juuust missed sending a notification; interval if
   // we just sent one and now have to wait the full interval)
   // _notificationIntervalCountInterval is effectively the 'time' in increments
-  // of _logQueue.interval until the next call; so convert time remaining to
-  // counts
-  var interval = Math.max(0, Math.min(remaining, _notifyQueue.interval));
+  // of interval until the next call; so convert time remaining to counts
+  var interval = Math.max(0, Math.min(remaining, interval));
   //_log('_notifyWrite', interval, 'qlen=' + _notifyQueue.queue.length);
   _notificationIntervalCount = interval*1000/_logQueue.interval;
 }
@@ -225,7 +229,7 @@ function postNotification(message) {
     'method': 'POST',
     'url': CONFIG.httpNtfyURL,
     'headers': CONFIG.httpNtfyHeaders,
-    'body': message,
+    'body': message + '\n' + currentTime,
     'timeout': 5
   }
 
@@ -346,13 +350,13 @@ function _shedLoad(totalCurrent) {
 
   // iterate through the switch priority list, from the end
   // load ID switchIds[0] is never on option (i.e. stop at p == 1)
+  var totalCurrentPrev = totalCurrent;
   var hitlist = [];
   for (var p = CONFIG.switchPriority.length - 1; p > 0; p--) {
     if (totalCurrent < CONFIG.currentMax) {
       break; // job done
     } else {
       var switchId = CONFIG.switchPriority[p];
-      _log('_shedLoad totalCurrent=' + totalCurrent, 'p=' + p, 'id=' + switchId);
       if (loadState.output[switchId]) { // on?
         hitlist.push(switchId);
         Shelly.call('Switch.Set', { id: switchId, on: false }, _callbackLogError);
@@ -367,7 +371,7 @@ function _shedLoad(totalCurrent) {
       var switchId = hitlist[i];
       switchNames.push(deviceConfig.switchNames[switchId] + ' (' + loadState.current[switchId] + 'A)');
     }
-    _notify('Shedding load: turned off switch(es)', switchNames.join(', '));
+    _notify('Shedding load (was ' + totalCurrentPrev +'A): turned off switch(es)', switchNames.join(', '));
   }
 }
 
