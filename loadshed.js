@@ -81,7 +81,7 @@ Aside on Low Power Loads
 //   - if a switch is omitted it won't be considered in any part of the calcs
 var CONFIG = {
   switchPriority: [3, 0, 1, 2], // switches to monitor
-  currentMax: 0.16,             // aim to keep the sum total below this level
+  currentMax: 15,               // aim to keep the sum total below this level
   httpNtfyURL: 'https://ntfy.sh/shelly-loadshed',
   httpNtfyHeaders: {            // static headers, incl. auth if required
     'Content-Type': 'text/plain',
