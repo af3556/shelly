@@ -43,7 +43,7 @@ fi
 # of the parent (if there were an exec involved, export would be required)
 
 set -o pipefail
-curl --no-progress-meter "http://${SHELLY}/rpc/Shelly.GetStatus" |
+curl --silent --show-error "http://${SHELLY}/rpc/Shelly.GetStatus" |
   jq --raw-output '[.sys.uptime, ."switch:0".temperature.tC] | @tsv' | {
     IFS=$'\t' read -r newuptime temperature remainder
 
