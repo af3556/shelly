@@ -5,6 +5,8 @@
 # - reboots (uptime decrease)
 # - over-temperature
 
+CURLOPTS=(--silent --show-error)
+
 # the P4o4PM max ambient is 40C; max. internal temp is unspecified
 # observationally internal temps are ~+20 above ambient, and general
 # consumer/commercial electronics will start having problems ca. 70C
@@ -43,7 +45,7 @@ fi
 # of the parent (if there were an exec involved, export would be required)
 
 set -o pipefail
-curl --silent --show-error "http://${SHELLY}/rpc/Shelly.GetStatus" |
+curl "${CURLOPTS[@]}" "http://${SHELLY}/rpc/Shelly.GetStatus" |
   jq --raw-output '[.sys.uptime, ."switch:0".temperature.tC] | @tsv' | {
     IFS=$'\t' read -r newuptime temperature remainder
 
@@ -56,13 +58,13 @@ curl --silent --show-error "http://${SHELLY}/rpc/Shelly.GetStatus" |
     if (( t > MAXTEMP )); then
       m="$SHELLY high temperature: $temperature"
       echo "$m"
-      curl -H "Priority: high" -H "Tags: warning" -d "$m" $NTFY
+      curl "${CURLOPTS[@]}" -H "Priority: high" -H "Tags: warning" -d "$m" $NTFY
     fi
 
     if (( newuptime < uptime )); then
       m="$SHELLY restarted? Uptime decreased: expected > $uptime, got $newuptime"
       echo "$m"
-      curl -d "$m" $NTFY
+      curl "${CURLOPTS[@]}" -d "$m" $NTFY
     fi
     uptime="$newuptime"
     printf "%(%F %R)T\t$uptime\t$temperature\n" >> "$LOG_FILE"
@@ -70,9 +72,9 @@ curl --silent --show-error "http://${SHELLY}/rpc/Shelly.GetStatus" |
 
 rc=$?
 pipes=( "${PIPESTATUS[@]}" )
-if (( $rc != 0 )); then
+if (( rc != 0 )); then
   errcount=$((errcount+1))
-  m="$0 GetStatus failed: ${pipes[@]}"
+  m="$0 GetStatus failed: ${pipes[*]}"
   echo "$m"
   # ntfy only on the first of a sequence of errors
   if (( errcount == 1 )); then
