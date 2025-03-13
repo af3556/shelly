@@ -67,7 +67,7 @@ curl "${CURLOPTS[@]}" "http://${SHELLY}/rpc/Shelly.GetStatus" |
       curl "${CURLOPTS[@]}" -d "$m" $NTFY
     fi
     uptime="$newuptime"
-    printf "%(%F %R)T\t$uptime\t$temperature\n" >> "$LOG_FILE"
+    printf "%(%F %R)T\t$uptime\t$temperature\n" | tee --append "$LOG_FILE"
   }
 
 rc=$?
