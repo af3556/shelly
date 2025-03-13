@@ -15,7 +15,7 @@ MAXTEMP=60
 NTFY=https://ntfy.sh/jonsson-pumphouse-loadshed
 
 if (( $#< 1 )); then
-  echo "usage: $0 shellyhost"
+  echo "usage: $0 shellyhost" >&2
   exit 1
 fi
 
@@ -50,20 +50,20 @@ curl "${CURLOPTS[@]}" "http://${SHELLY}/rpc/Shelly.GetStatus" |
     IFS=$'\t' read -r newuptime temperature remainder
 
     if [[ -z $newuptime || -z $temperature ]]; then
-      echo "$0 failed to read JSON data: [$newuptime, $temperature, $remainder]"
+      echo "$0 failed to read JSON data: [$newuptime, $temperature, $remainder]" >&2
       exit 1  # exit the | {} subshell
     fi
 
     printf -v t "%.0f" "$temperature"
     if (( t > MAXTEMP )); then
       m="$SHELLY high temperature: $temperature"
-      echo "$m"
+      echo "$m" >&2
       curl "${CURLOPTS[@]}" -H "Priority: high" -H "Tags: warning" -d "$m" $NTFY
     fi
 
     if (( newuptime < uptime )); then
       m="$SHELLY restarted? Uptime decreased: expected > $uptime, got $newuptime"
-      echo "$m"
+      echo "$m" >&2
       curl "${CURLOPTS[@]}" -d "$m" $NTFY
     fi
     uptime="$newuptime"
@@ -74,8 +74,8 @@ rc=$?
 pipes=( "${PIPESTATUS[@]}" )
 if (( rc != 0 )); then
   errcount=$((errcount+1))
-  m="$0 GetStatus failed: ${pipes[*]}"
-  echo "$m"
+  m="$0 failed: ${pipes[*]}"
+  echo "$m" >&2
   # ntfy only on the first of a sequence of errors
   if (( errcount == 1 )); then
     curl -d "$m" $NTFY
@@ -84,4 +84,3 @@ if (( rc != 0 )); then
 else
   errcount=0
 fi
-
