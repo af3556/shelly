@@ -58,13 +58,15 @@ curl "${CURLOPTS[@]}" "http://${SHELLY}/rpc/Shelly.GetStatus" |
     if (( t > MAXTEMP )); then
       m="$SHELLY high temperature: $temperature"
       echo "$m" >&2
-      curl "${CURLOPTS[@]}" -H "Priority: high" -H "Tags: warning" -d "$m" $NTFY
+      m+=" [$HOSTNAME]"
+      curl "${CURLOPTS[@]}" -H "Priority: high" -H "Tags: warning" -d "$m" "$NTFY"
     fi
 
     if (( newuptime < uptime )); then
       m="$SHELLY restarted? Uptime decreased: expected > $uptime, got $newuptime"
       echo "$m" >&2
-      curl "${CURLOPTS[@]}" -d "$m" $NTFY
+      m+=" [$HOSTNAME]"
+      curl "${CURLOPTS[@]}" -d "$m" "$NTFY"
     fi
     uptime="$newuptime"
     printf "%(%F %R)T\t$uptime\t$temperature\n" | tee --append "$LOG_FILE"
@@ -78,7 +80,8 @@ if (( rc != 0 )); then
   echo "$m" >&2
   # ntfy only on the first of a sequence of errors
   if (( errcount == 1 )); then
-    curl -d "$m" $NTFY
+    m+=" [$HOSTNAME]"
+    curl -d "$m" "$NTFY"
   fi
   exit 1
 else
