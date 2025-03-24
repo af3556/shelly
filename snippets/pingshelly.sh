@@ -81,7 +81,7 @@ if (( rc != 0 )); then
   # ntfy only on the first of a sequence of errors
   if (( errcount == 1 )); then
     m+=" [$HOSTNAME]"
-    curl -d "$m" "$NTFY"
+    curl "${CURLOPTS[@]}" -d "$m" "$NTFY"
   fi
   exit 1
 else
