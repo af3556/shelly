@@ -5,7 +5,9 @@
 # - reboots (uptime decrease)
 # - over-temperature
 
-CURLOPTS=(--silent --show-error)
+curl_opts() {
+  curl --silent --show-error "$@"
+}
 
 # the P4o4PM max ambient is 40C; max. internal temp is unspecified
 # observationally internal temps are ~+20 above ambient, and general
@@ -59,14 +61,14 @@ curl "${CURLOPTS[@]}" "http://${SHELLY}/rpc/Shelly.GetStatus" |
       m="$SHELLY high temperature: $temperature"
       echo "$m" >&2
       m+=" [$HOSTNAME]"
-      curl "${CURLOPTS[@]}" -H "Priority: high" -H "Tags: warning" -d "$m" "$NTFY"
+      curl_opts -H "Priority: high" -H "Tags: warning" -d "$m" "$NTFY"
     fi
 
     if (( newuptime < uptime )); then
       m="$SHELLY restarted? Uptime decreased: expected > $uptime, got $newuptime"
       echo "$m" >&2
       m+=" [$HOSTNAME]"
-      curl "${CURLOPTS[@]}" -d "$m" "$NTFY"
+      curl_opts -d "$m" "$NTFY"
     fi
     uptime="$newuptime"
     printf "%(%F %R)T\t$uptime\t$temperature\n" | tee --append "$LOG_FILE"
@@ -81,7 +83,7 @@ if (( rc != 0 )); then
   # ntfy only on the first of a sequence of errors
   if (( errcount == 1 )); then
     m+=" [$HOSTNAME]"
-    curl "${CURLOPTS[@]}" -d "$m" "$NTFY"
+    curl_opts -d "$m" "$NTFY"
   fi
   exit 1
 else
