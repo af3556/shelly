@@ -47,7 +47,7 @@ fi
 # of the parent (if there were an exec involved, export would be required)
 
 set -o pipefail
-curl "${CURLOPTS[@]}" "http://${SHELLY}/rpc/Shelly.GetStatus" |
+uptime=$(curl_opts "http://${SHELLY}/rpc/Shelly.GetStatus" |
   jq --raw-output '[.sys.uptime, ."switch:0".temperature.tC] | @tsv' | {
     IFS=$'\t' read -r newuptime temperature remainder
 
@@ -70,9 +70,10 @@ curl "${CURLOPTS[@]}" "http://${SHELLY}/rpc/Shelly.GetStatus" |
       m+=" [$HOSTNAME]"
       curl_opts -d "$m" "$NTFY"
     fi
-    uptime="$newuptime"
-    printf "%(%F %R)T\t$uptime\t$temperature\n" | tee --append "$LOG_FILE"
-  }
+    printf "%(%F %R)T\t$newuptime\t$temperature\n" | tee --append  "$LOG_FILE" >&2
+    # return new uptime to be written to the state file (we're in a subshell)
+    printf "$newuptime"
+  })
 
 rc=$?
 pipes=( "${PIPESTATUS[@]}" )
