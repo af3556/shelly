@@ -70,9 +70,16 @@ uptime=$(curl_opts "http://${SHELLY}/rpc/Shelly.GetStatus" |
       m+=" [$HOSTNAME]"
       curl_opts -d "$m" "$NTFY"
     fi
-    printf "%(%F %R)T\t$newuptime\t$temperature\n" | tee --append  "$LOG_FILE" >&2
+    # %T: -1 = current time
+    printf -v logmsg "%(%F %R)T\t%s\t%s" -1 "$newuptime" "$temperature"
+    # echo log to stderr when it's connected to a tty (i.e. not cron)
+    if [ -t 2 ]; then
+      echo "$logmsg" | tee --append "$LOG_FILE" >&2
+    else
+      echo "$logmsg" >> "$LOG_FILE"
+    fi
     # return new uptime to be written to the state file (we're in a subshell)
-    printf "$newuptime"
+    echo "$newuptime"
   })
 
 rc=$?
