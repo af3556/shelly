@@ -16,7 +16,7 @@ curl_opts() {
 MAXTEMP=60
 NTFY=https://ntfy.sh/jonsson-pumphouse-loadshed
 
-if (( $#< 1 )); then
+if (( $# < 1 )); then
   echo "usage: $0 shellyhost" >&2
   exit 1
 fi
@@ -25,6 +25,7 @@ SHELLY="$1"
 STATE_FILE=/var/local/$(basename "$0").$(basename "$SHELLY" .).state
 LOG_FILE=${STATE_FILE%.state}.log
 
+# write the uptime and errcount variables to a 'state' file on our way out
 trap 'declare -p uptime errcount > "$STATE_FILE"' EXIT
 
 uptime=0
@@ -43,7 +44,7 @@ fi
 # i.e. when the read subshell exit's 1, this will propagate up
 # if you care about intermediate process exit status, use PIPESTATUS
 #
-# aside: MAXTEMP is available in the subshell, as the latter is a forked copy
+# aside: MAXTEMP is available in the subshell as the latter is a forked copy
 # of the parent (if there were an exec involved, export would be required)
 
 set -o pipefail
