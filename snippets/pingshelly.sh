@@ -7,7 +7,10 @@
 # and sent a notification via ntfy.sh
 
 curl_opts() {
-  curl --silent --show-error "$@"
+  # --silent+show-error: be quit except when things go wrong
+  # --fail = exit status (22) on any HTTP status >=400
+  # (writing out the non-JSON error body is pointless as that's piped to jq)
+  curl --silent --show-error --fail "$@"
 }
 
 # the P4o4PM max ambient is 40C; max. internal temp is unspecified
@@ -100,9 +103,8 @@ else
   # ntfy only on the first of a sequence of errors
   if (( errcount == 1 )); then
     # report shelly_status error message(s) (slice)
-    m="$SHELLY ${shelly_status[@]:2} [$HOSTNAME]"
+    m="$SHELLY ${shelly_status[*]:2} [$HOSTNAME]"
     if (( rc >= 100 )); then
-        result='WARN'
         curl_opts -H "Priority: high" -H "Tags: warning" -d "$m" "$NTFY"
     else
         curl_opts -d "$m" "$NTFY"
