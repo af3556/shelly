@@ -26,7 +26,9 @@ if (( $#< 1 )); then
 fi
 
 SHELLY="$1"
-b=$(basename "$0").$(basename "$SHELLY" .)
+# basename the target host to prevent typos from splatting files in odd places
+# (e.g. an IP address of 10.1.2/3)
+b=$(basename "$0").$(basename "$SHELLY")
 SHELLY_STATE_FILE=${SHELLY_STATE_FILE:-/var/local/"$b".state}
 SHELLY_LOG_FILE=${SHELLY_LOG_FILE:-/var/local/"$b".log}
 
@@ -88,7 +90,12 @@ get_shelly_status() {
       exit 0
   }
   RC=( "${PIPESTATUS[@]}" )
-  exit "${RC[-1]}"
+  # this function is intended to be called via process substitution <()
+  # so an exit instead of return would work "just as well", but would be subtly
+  # wrong ;-)
+  # interestingly a ML picked this up, but provided the wrong reasoning as to
+  # why it was wrong
+  return "${RC[-1]}"
 }
 
 readarray -t shelly_status < <(get_shelly_status 2>&1)
