@@ -1,4 +1,3 @@
-
 #!/bin/bash
 # check a shelly's operational state; track uptime and temperature
 # will detect
@@ -14,7 +13,7 @@ curl_opts() {
   curl --silent --show-error --fail "$@"
 }
 
-if (( $#< 1 )); then
+if (( $# < 1 )); then
   echo "usage: $0 shellyhost" >&2
   exit 1
 fi
@@ -22,6 +21,7 @@ fi
 SHELLY="$1"
 
 # ntfy topics only allow [\w_-]+
+# HOSTNAME is set by bash, so will be present even under cron; use domain part
 topic="${HOSTNAME#*.}-${SHELLY}"
 NTFY="https://ntfy.sh/${topic//[^[:alnum:]-]/_}"
 
