@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # check a shelly's operational state; track uptime and temperature
 # will detect
 # - offline state (i.e. failed RPC)
@@ -28,8 +28,12 @@ NTFY="https://ntfy.sh/${topic//[^[:alnum:]-]/_}"
 # basename the target host to prevent typos from splatting files in odd places
 # (e.g. an IP address of 10.1.2/3)
 b=$(basename "$0").$(basename "$SHELLY")
-SHELLY_STATE_FILE=${SHELLY_STATE_FILE:-/var/local/"$b".state}
-SHELLY_LOG_FILE=${SHELLY_LOG_FILE:-/var/local/"$b".log}
+d=/var/local
+if [[ ! -w "$d" ]]; then
+  d=/tmp
+fi
+SHELLY_STATE_FILE=${SHELLY_STATE_FILE:-"$d/$b".state}
+SHELLY_LOG_FILE=${SHELLY_LOG_FILE:-"$d/$b".log}
 
 # the P4o4PM max ambient is 40C; max. internal temp is unspecified
 # observationally internal temps are ~+20 above ambient, and general
