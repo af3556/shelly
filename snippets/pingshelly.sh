@@ -20,10 +20,10 @@ fi
 
 SHELLY="$1"
 
-# ntfy topics only allow [\w_-]+
-# HOSTNAME is set by bash, so will be present even under cron; use domain part
-topic="${HOSTNAME#*.}-${SHELLY}"
-NTFY="https://ntfy.sh/${topic//[^[:alnum:]-]/_}"
+# HOSTNAME is set by bash, so will be present even under cron
+topic="${HOSTNAME}-${SHELLY}"
+# ntfy topics only allow [\w_-]+, replace anything else with _
+NTFY="https://ntfy.sh/${topic//[^[:alnum:]_-]/_}"
 
 # basename the target host to prevent typos from splatting files in odd places
 # (e.g. an IP address of 10.1.2/3)
@@ -45,7 +45,7 @@ MAXTEMP=60
 # append to the given log file
 # test -t n: true if fd n is connected to a tty
 # in days of yore you had to pick an fd and hope it wasn't being used
-# (or more rigourously search for a free fd); as of 4.1 bash will allocate one
+# (or more rigorously search for a free fd); as of 4.1 bash will allocate one
 # for you (and store the allocated fd in LOG_FD, here)
 if [ -t 1 ]; then
   exec {LOG_FD}>&1
@@ -78,21 +78,21 @@ get_shelly_status() {
       IFS=$'\t' read -r newuptime temperature remainder
 
       if [[ -z $newuptime || -z $temperature ]]; then
-        echo "failed to read JSON data: [$newuptime, $temperature, $remainder]"
-        exit 1  # exit the | {} subshell
+        echo "failed to read JSON data: [$newuptime, $temperature, $remainder]" >&2
+        exit 1
       fi
 
       echo "$newuptime"
       echo "$temperature"
 
       if (( newuptime < uptime )); then
-        echo "restarted? Uptime decreased: expected > $uptime, got $newuptime"
+        echo "restarted? Uptime decreased: expected > $uptime, got $newuptime" >&2
         exit 10
       fi
 
       printf -v t "%.0f" "$temperature"
       if (( t > MAXTEMP )); then
-        echo "high temperature: $temperature"
+        echo "high temperature: $temperature" >&2
         exit 100
       fi
 
@@ -102,11 +102,12 @@ get_shelly_status() {
   # this function is intended to be called via process substitution <()
   # so an exit instead of return would work "just as well", but would be subtly
   # wrong ;-)
-  # interestingly a ML picked this up, but provided the wrong reasoning as to
-  # why it was wrong
   return "${RC[-1]}"
 }
 
+# capture errors (stderr) too; will be a mix of curl/jq etc
+# aside: attempting to read stdout and err independently (e.g. via fifos) is
+# fraught with hazards (e.g. blocking); KISS
 readarray -t shelly_status < <(get_shelly_status 2>&1)
 wait "$!" # populate $? from <() https://mywiki.wooledge.org/ProcessSubstitution
 rc=$?
@@ -118,12 +119,14 @@ else
   errcount=$((errcount+1))
   # ntfy only on the first of a sequence of errors
   if (( errcount == 1 )); then
-    # report shelly_status error message(s) (slice)
-    m="$SHELLY ${shelly_status[*]:2} [$HOSTNAME]"
+    t="$SHELLY [$HOSTNAME]"
+    # report shelly_status error message(s)
+    m="${shelly_status[*]}"
     if (( rc >= 100 )); then
-        curl_opts -H "Priority: high" -H "Tags: warning" -d "$m" "$NTFY"
+        curl_opts -H "Priority: high" -H "Tags: warning" -H "X-Title: ${t}"
+          -d "$m" "$NTFY"
     else
-        curl_opts -d "$m" "$NTFY"
+        curl_opts  -H "X-Title: ${t}" -d "$m" "$NTFY"
     fi
   fi
 fi
