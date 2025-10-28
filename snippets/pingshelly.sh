@@ -13,45 +13,34 @@ curl_opts() {
   curl --silent --show-error --fail "$@"
 }
 
-if (( $# < 1 )); then
-  echo "usage: $0 shellyhost" >&2
+if (( $# < 2 )); then
+  echo "usage: $0 shellyhost statefile [logfile (default: stdout)]" >&2
   exit 1
 fi
 
 SHELLY="$1"
+SHELLY_STATE_FILE="$2"
+SHELLY_LOG_FILE="$3"
+
+if (( $# < 3 )); then
+  exec {LOG_FD}>&1
+else
+  if ! exec {LOG_FD}>>"$SHELLY_LOG_FILE"; then  # append
+    echo "can't write to log file [$SHELLY_LOG_FILE]" >&2
+    exit 1
+  fi
+fi
 
 # HOSTNAME is set by bash, so will be present even under cron
 topic="${HOSTNAME}-${SHELLY}"
 # ntfy topics only allow [\w_-]+, replace anything else with _
 NTFY="https://ntfy.sh/${topic//[^[:alnum:]_-]/_}"
 
-# basename the target host to prevent typos from splatting files in odd places
-# (e.g. an IP address of 10.1.2/3)
-b=$(basename "$0").$(basename "$SHELLY")
-d=/var/local
-if [[ ! -w "$d" ]]; then
-  d=/tmp
-fi
-SHELLY_STATE_FILE=${SHELLY_STATE_FILE:-"$d/$b".state}
-SHELLY_LOG_FILE=${SHELLY_LOG_FILE:-"$d/$b".log}
-
 # the P4o4PM max ambient is 40C; max. internal temp is unspecified
 # observationally internal temps are ~+20 above ambient, and general
 # consumer/commercial electronics will start having problems ca. 70C
 # bash can't do floating point, so must be integer
 MAXTEMP=60
-
-# when connected to a tty send output to stdout; otherwise (e.g. via cron)
-# append to the given log file
-# test -t n: true if fd n is connected to a tty
-# in days of yore you had to pick an fd and hope it wasn't being used
-# (or more rigorously search for a free fd); as of 4.1 bash will allocate one
-# for you (and store the allocated fd in LOG_FD, here)
-if [ -t 1 ]; then
-  exec {LOG_FD}>&1
-else
-  exec {LOG_FD}>>"$SHELLY_LOG_FILE"  # append
-fi
 
 trap 'declare -p uptime errcount > "$SHELLY_STATE_FILE"' EXIT
 
@@ -117,14 +106,14 @@ if (( rc == 0 )); then
   uptime="${shelly_status[0]}"
 else
   errcount=$((errcount+1))
-  # ntfy only on the first of a sequence of errors
-  if (( errcount == 1 )); then
+  # ntfy only on a diminishing sequence of errors (errcount == 2^n-1)
+  # - the bitwise AND will be 0/false only when errcount is about to step up to the next bit boundary, e.g. 1, 3, 7, 15, ...
+  if ! (( (errcount + 1) & errcount )); then
     t="$SHELLY [$HOSTNAME]"
     # report shelly_status error message(s)
-    m="${shelly_status[*]}"
+    m="${shelly_status[*]} errcount=$errcount"
     if (( rc >= 100 )); then
-        curl_opts -H "Priority: high" -H "Tags: warning" -H "X-Title: ${t}"
-          -d "$m" "$NTFY"
+        curl_opts -H "Priority: high" -H "Tags: warning" -H "X-Title: ${t}" -d "$m" "$NTFY"
     else
         curl_opts  -H "X-Title: ${t}" -d "$m" "$NTFY"
     fi
