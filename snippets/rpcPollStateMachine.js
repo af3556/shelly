@@ -1,8 +1,7 @@
 /*
-This is an exercise in wrapping an RPC call in a state-drive poll loop.
-It's a pointless exercise for Shelly RPCs, these should be able to be relied
-upon to return properly (i.e. call the callback). With that assumption, all the
-state stuff can be eliminated.
+Shelly's local RPC mechanism Shelly.call() is asynchronous, it invokes a callback to return
+the result and/or any errors. This snippet is an exercise in polling an RPC call via a state-driven
+poll loop to fetch the results. There's (probably?) no reason to do this when the callback exists.
 */
 
 var _pollTimer;
