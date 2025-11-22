@@ -10,7 +10,7 @@ curl_opts() {
   # --silent+show-error: be quiet except when things go wrong
   # --fail = exit status (22) on any HTTP status >=400
   # (writing out the non-JSON error body is pointless as that's piped to jq)
-  curl --silent --show-error --fail "$@"
+  curl --silent --show-error --fail ${SHELLYAUTH+--anyauth --user "${SHELLYAUTH}"} "$@"
 }
 
 if (( $# < 2 )); then
@@ -19,14 +19,14 @@ if (( $# < 2 )); then
 fi
 
 SHELLY="$1"
-SHELLY_STATE_FILE="$2"
-SHELLY_LOG_FILE="$3"
+STATE_FILE="$2"
+LOG_FILE="$3"
 
 if (( $# < 3 )); then
   exec {LOG_FD}>&1
 else
-  if ! exec {LOG_FD}>>"$SHELLY_LOG_FILE"; then  # append
-    echo "can't write to log file [$SHELLY_LOG_FILE]" >&2
+  if ! exec {LOG_FD}>>"$LOG_FILE"; then  # append
+    echo "can't write to log file [$LOG_FILE]" >&2
     exit 1
   fi
 fi
@@ -42,13 +42,13 @@ NTFY="https://ntfy.sh/${topic//[^[:alnum:]_-]/_}"
 # bash can't do floating point, so must be integer
 MAXTEMP=60
 
-trap 'declare -p uptime errcount > "$SHELLY_STATE_FILE"' EXIT
+trap 'declare -p uptime errcount > "$STATE_FILE"' EXIT
 
 uptime=0
 errcount=0
-if [[ -f "$SHELLY_STATE_FILE" ]]; then
+if [[ -f "$STATE_FILE" ]]; then
   # shellcheck source=/dev/null # SC1090
-  source "$SHELLY_STATE_FILE"
+  source "$STATE_FILE"
 else
   echo "$0 no prior state"
 fi
