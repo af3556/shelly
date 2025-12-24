@@ -79,7 +79,7 @@ def load_state(filepath):
 def save_state(filepath):
     """
     Saves the current uptime and error count to the state file.
-    This function is registered to run on script exit.
+    Intended to be called on script exit.
     """
     try:
         with open(filepath, 'w') as f:
@@ -88,8 +88,6 @@ def save_state(filepath):
         print(f"State saved: uptime={_current_uptime}, errcount={_error_count}", file=sys.stderr)
     except IOError as e:
         print(f"Error saving state to {filepath}: {e}", file=sys.stderr)
-
-# --- Shelly Status Check ---
 
 def get_shelly_status(shelly_host):
     """
@@ -106,15 +104,11 @@ def get_shelly_status(shelly_host):
     status_code = 0
 
     try:
-        response = requests.get(url, timeout=10) # 10 second timeout
+        response = requests.get(url, timeout=10)
         response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
         data = response.json()
 
-        # Extract uptime and temperature
         new_uptime = data.get('sys', {}).get('uptime')
-        # Shelly Plus devices use "switch:0".temperature.tC for internal temperature
-        # Shelly Gen 1 devices might use "tmp".tC or similar.
-        # This script assumes Shelly Plus format.
         temperature_data = data.get('switch:0', {}).get('temperature')
         if temperature_data:
             temperature = temperature_data.get('tC')
@@ -123,20 +117,14 @@ def get_shelly_status(shelly_host):
             message = f"Failed to read JSON data: uptime={new_uptime}, temperature={temperature}"
             status_code = 1
         else:
-            # Check for uptime decrease (reboot)
             if new_uptime < _current_uptime:
                 message = f"Restarted? Uptime decreased: expected > {_current_uptime}, got {new_uptime}"
                 status_code = 10
 
-            # Check for high temperature
-            # Convert temperature to integer for comparison as in bash script
             temp_int = int(temperature)
             if temp_int > MAXTEMP:
-                if status_code == 0: # Only set if no other higher priority issue
-                    message = f"High temperature: {temperature}°C (max {MAXTEMP}°C)"
-                    status_code = 100
-                else: # Append temperature warning if another issue already detected
-                    message += f"; High temperature: {temperature}°C (max {MAXTEMP}°C)"
+                message += f"High temperature: {temperature}°C (max {MAXTEMP}°C)"
+                status_code += 100
 
     except requests.exceptions.Timeout:
         message = f"Connection to {shelly_host} timed out."
@@ -156,8 +144,6 @@ def get_shelly_status(shelly_host):
 
     return status_code, new_uptime, temperature, message
 
-# --- Notification ---
-
 def send_notification(message, priority="default", tags=None):
     """
     Sends a notification via ntfy.sh.
@@ -175,7 +161,6 @@ def send_notification(message, priority="default", tags=None):
     except requests.exceptions.RequestException as e:
         print(f"Failed to send ntfy notification: {e}", file=sys.stderr)
 
-# --- Main Logic ---
 
 def main():
     global _error_count, _current_uptime
@@ -186,10 +171,8 @@ def main():
 
     shelly_host = sys.argv[1]
 
-    # Setup logging first
     setup_logging(shelly_host)
 
-    # Determine state file path and load prior state
     state_filepath = get_state_filepath(shelly_host)
     load_state(state_filepath)
 
@@ -197,7 +180,6 @@ def main():
     import atexit
     atexit.register(save_state, state_filepath)
 
-    # Get Shelly status
     status_code, new_uptime, temperature, message = get_shelly_status(shelly_host)
 
     if status_code == 0:
