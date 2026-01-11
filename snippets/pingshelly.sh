@@ -10,7 +10,7 @@ curl_opts() {
   # --silent+show-error: be quiet except when things go wrong
   # --fail = exit status (22) on any HTTP status >=400
   # (writing out the non-JSON error body is pointless as that's piped to jq)
-  curl --silent --show-error --fail ${SHELLYAUTH+--anyauth --user "${SHELLYAUTH}"} "$@"
+  curl --silent --show-error --fail "$@"
 }
 
 if (( $# < 2 )); then
@@ -26,12 +26,17 @@ if (( $# < 3 )); then
   exec {LOG_FD}>&1
 else
   if ! exec {LOG_FD}>>"$LOG_FILE"; then  # append
-    echo "can't write to log file [$LOG_FILE]" >&2
-    exit 1
+    echo "can't write to log file [$LOG_FILE], using stdout" >&2
   fi
 fi
 
-# HOSTNAME is set by bash, so will be present even under cron
+log() {
+  local IFS=$'\t'
+  # write timestamp, fallback to stdout
+  printf "%(%F %R)T\t%s\t%s\n" -1 "$*" >&${LOG_FD:-1}
+}
+
+# HOSTNAME is set by bash so will be present even under cron
 topic="${HOSTNAME}-${SHELLY}"
 # ntfy topics only allow [\w_-]+, replace anything else with _
 NTFY="https://ntfy.sh/${topic//[^[:alnum:]_-]/_}"
@@ -61,7 +66,7 @@ fi
 # of the parent (if there were an exec involved, export would be required)
 
 get_shelly_status() {
-  curl_opts "http://${SHELLY}/rpc/Shelly.GetStatus" |
+  curl_opts ${SHELLYAUTH+--anyauth --user "${SHELLYAUTH}"} "http://${SHELLY}/rpc/Shelly.GetStatus" |
     jq --raw-output '[.sys.uptime, ."switch:0".temperature.tC] | @tsv' |
     {
       IFS=$'\t' read -r newuptime temperature remainder
@@ -79,9 +84,9 @@ get_shelly_status() {
         exit 10
       fi
 
-      printf -v t "%.0f" "$temperature"
+      printf -v t "%.0f" "$temperature" # zero decimal places (i.e. int())
       if (( t > MAXTEMP )); then
-        echo "high temperature: $temperature" >&2
+        echo "high temperature ($t>$MAXTEMP)" >&2
         exit 100
       fi
 
@@ -101,7 +106,10 @@ readarray -t shelly_status < <(get_shelly_status 2>&1)
 wait "$!" # populate $? from <() https://mywiki.wooledge.org/ProcessSubstitution
 rc=$?
 
+log "$rc" "${shelly_status[*]}"
+
 if (( rc == 0 )); then
+  # update state
   errcount=0
   uptime="${shelly_status[0]}"
 else
@@ -112,16 +120,16 @@ else
     t="$SHELLY [$HOSTNAME]"
     # report shelly_status error message(s)
     m="${shelly_status[*]} errcount=$errcount"
+    headers=(-H "X-Title: ${t}")
     if (( rc >= 100 )); then
-        curl_opts -H "Priority: high" -H "Tags: warning" -H "X-Title: ${t}" -d "$m" "$NTFY"
-    else
-        curl_opts  -H "X-Title: ${t}" -d "$m" "$NTFY"
+        headers+=(-H "Priority: high" -H "Tags: warning")
+    fi
+    curl_output=$(curl_opts "${headers[@]}" -d "$m" "$NTFY" 2>&1)
+    curl_rc=$?
+    if (( curl_rc != 0 )); then
+      log "ntfy failed: $curl_rc" "$curl_output"
     fi
   fi
 fi
-
-IFS=$'\t'
-printf "%(%F %R)T\t%s\t%s\n" -1 "$rc" "${shelly_status[*]}" >&${LOG_FD}
-unset IFS
 
 exit $rc
