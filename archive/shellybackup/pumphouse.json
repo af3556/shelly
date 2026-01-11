@@ -1,0 +1,283 @@
+{
+    "Ble": {
+        "enable": true,
+        "rpc": {
+            "enable": true
+        }
+    },
+    "Bthome": {},
+    "Cloud": {
+        "enable": true,
+        "server": "shelly-158-eu.shelly.cloud:6022/jrpc"
+    },
+    "Eth": {
+        "enable": true,
+        "server_mode": false,
+        "ipv4mode": "dhcp",
+        "ip": null,
+        "netmask": null,
+        "gw": null,
+        "nameserver": null
+    },
+    "input:0": {
+        "id": 0,
+        "name": null,
+        "type": "switch",
+        "enable": true,
+        "invert": false
+    },
+    "input:1": {
+        "id": 1,
+        "name": null,
+        "type": "switch",
+        "enable": true,
+        "invert": false
+    },
+    "input:2": {
+        "id": 2,
+        "name": null,
+        "type": "switch",
+        "enable": true,
+        "invert": false
+    },
+    "input:3": {
+        "id": 3,
+        "name": null,
+        "type": "switch",
+        "enable": true,
+        "invert": false
+    },
+    "Knx": {
+        "enable": false,
+        "ia": "15.15.255",
+        "routing": {
+            "addr": "224.0.23.12:3671"
+        }
+    },
+    "Mqtt": {
+        "enable": false,
+        "server": null,
+        "client_id": "shellypro4pm-6825ddd6595c",
+        "user": null,
+        "ssl_ca": null,
+        "topic_prefix": "shellypro4pm-6825ddd6595c",
+        "rpc_ntf": true,
+        "status_ntf": false,
+        "use_client_cert": false,
+        "enable_rpc": true,
+        "enable_control": true
+    },
+    "script:1": {
+        "id": 1,
+        "name": "TimerExample",
+        "enable": false
+    },
+    "switch:0": {
+        "id": 0,
+        "name": "1 Transfer Pump",
+        "in_mode": "detached",
+        "in_locked": false,
+        "initial_state": "off",
+        "auto_on": false,
+        "auto_on_delay": 60.0,
+        "auto_off": true,
+        "auto_off_delay": 10860.0,
+        "power_limit": 4480,
+        "voltage_limit": 280,
+        "undervoltage_limit": 0,
+        "autorecover_voltage_errors": false,
+        "current_limit": 16.0,
+        "reverse": false
+    },
+    "switch:1": {
+        "id": 1,
+        "name": "2 Tap Pump",
+        "in_mode": "detached",
+        "in_locked": false,
+        "initial_state": "off",
+        "auto_on": false,
+        "auto_on_delay": 60.0,
+        "auto_off": false,
+        "auto_off_delay": 60.0,
+        "power_limit": 4480,
+        "voltage_limit": 280,
+        "undervoltage_limit": 0,
+        "autorecover_voltage_errors": false,
+        "current_limit": 16.0,
+        "reverse": false
+    },
+    "switch:2": {
+        "id": 2,
+        "name": "3 Bore Pump",
+        "in_mode": "detached",
+        "in_locked": false,
+        "initial_state": "off",
+        "auto_on": false,
+        "auto_on_delay": 60.0,
+        "auto_off": true,
+        "auto_off_delay": 240.0,
+        "power_limit": 4480,
+        "voltage_limit": 280,
+        "undervoltage_limit": 0,
+        "autorecover_voltage_errors": false,
+        "current_limit": 16.0,
+        "reverse": false
+    },
+    "switch:3": {
+        "id": 3,
+        "name": "4 GPO",
+        "in_mode": "detached",
+        "in_locked": false,
+        "initial_state": "restore_last",
+        "auto_on": false,
+        "auto_on_delay": 60.0,
+        "auto_off": false,
+        "auto_off_delay": 60.0,
+        "power_limit": 4480,
+        "voltage_limit": 280,
+        "undervoltage_limit": 0,
+        "autorecover_voltage_errors": false,
+        "current_limit": 16.0,
+        "reverse": false
+    },
+    "Sys": {
+        "device": {
+            "name": "pumphouse",
+            "mac": "6825DDD6595C",
+            "fw_id": "20250924-062756/1.7.1-gd336f31",
+            "discoverable": true,
+            "eco_mode": true
+        },
+        "location": {
+            "tz": "Australia/Sydney",
+            "lat": -33.9074,
+            "lon": 151.1561
+        },
+        "debug": {
+            "level": 2,
+            "file_level": null,
+            "mqtt": {
+                "enable": false
+            },
+            "websocket": {
+                "enable": true
+            },
+            "udp": {
+                "addr": null
+            }
+        },
+        "ui_data": {},
+        "rpc_udp": {
+            "dst_addr": null,
+            "listen_port": null
+        },
+        "sntp": {
+            "server": "192.168.39.1"
+        },
+        "cfg_rev": 28
+    },
+    "Ui": {
+        "idle_brightness": 30
+    },
+    "Wifi": {
+        "ap": {
+            "ssid": "ShellyPro4PM-6825DDD6595C",
+            "is_open": true,
+            "enable": false,
+            "range_extender": {
+                "enable": false
+            }
+        },
+        "sta": {
+            "ssid": null,
+            "is_open": true,
+            "enable": false,
+            "ipv4mode": "dhcp",
+            "ip": null,
+            "netmask": null,
+            "gw": null,
+            "nameserver": null
+        },
+        "sta1": {
+            "ssid": null,
+            "is_open": true,
+            "enable": false,
+            "ipv4mode": "dhcp",
+            "ip": null,
+            "netmask": null,
+            "gw": null,
+            "nameserver": null
+        },
+        "roam": {
+            "rssi_thr": -80,
+            "interval": 60
+        }
+    },
+    "Ws": {
+        "enable": false,
+        "server": null,
+        "ssl_ca": "ca.pem"
+    },
+    "Webhook": {
+        "hooks": [
+            {
+                "id": 1,
+                "cid": 0,
+                "enable": true,
+                "event": "input.toggle_on",
+                "name": "test",
+                "ssl_ca": "ca.pem",
+                "urls": [
+                    "https://ntfy.sh/shelly"
+                ],
+                "active_between": [
+                    "12:26",
+                    "17:26"
+                ],
+                "condition": null,
+                "repeat_period": 0
+            }
+        ],
+        "rev": 2
+    },
+    "Schedule": {
+        "jobs": [
+            {
+                "id": 1,
+                "enable": true,
+                "timespec": "0 0 0 * * SUN,MON,TUE,WED,THU,FRI,SAT",
+                "calls": [
+                    {
+                        "method": "switch.set",
+                        "params": {
+                            "id": 1,
+                            "on": false
+                        }
+                    }
+                ]
+            },
+            {
+                "id": 2,
+                "enable": true,
+                "timespec": "0 0 5 * * MON,WED,FRI",
+                "calls": [
+                    {
+                        "method": "switch.set",
+                        "params": {
+                            "id": 2,
+                            "on": true
+                        }
+                    }
+                ]
+            }
+        ],
+        "rev": 2
+    },
+    "Script:1": {
+        "id": 1,
+        "name": "TimerExample",
+        "enable": false,
+        "running": true,
+        "code_inline": "{\"data\":\"var count = 0;\\n\\nfunction incrementTimerCallback() {\\n  var unixtime = Shelly.getComponentStatus('Sys').unixtime;\\n  // unless you've time-travelled back to 1 Jan 1970, a valid unixtime should be a number > 0;\\n  // anything else - incl. undefined - is an error\\n  if (!(unixtime && unixtime > 0)) {\\n    // possibly because the clock hasn't sync'd, or other reasons\\n    // - falling back to uptime may be a useful backup plan\\n    console.log('WARN failed to get unixtime', unixtime);\\n    return;\\n  }\\n  if (unixtime % 60 < 30) {\\n    count++;\\n  } else {\\n    count--;\\n  }\\n  console.log('unixtime%60=', unixtime%60, 'count=', count);\\n}\\n\\nfunction startTimer() {\\n Timer.set(6*1000, true, incrementTimerCallback);\\n}\\n\\nstartTimer();\", \"left\":0}"
+    }
+}
