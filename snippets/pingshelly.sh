@@ -33,7 +33,7 @@ fi
 log() {
   local IFS=$'\t'
   # write timestamp, fallback to stdout
-  printf "%(%F %R)T\t%s\t%s\n" -1 "$*" >&${LOG_FD:-1}
+  printf "%(%F %R)T\t%s\t%s\n" -1 "$1" "${*:2}" >&${LOG_FD:-1}
 }
 
 # HOSTNAME is set by bash so will be present even under cron
@@ -59,8 +59,7 @@ else
 fi
 
 # the subshell will exit with various status codes:
-# 0 on a-ok; 1 on read error; 10-99 on low-priority error (connect failure or
-# reboot) and 100+ on high-priority error (overtemp)
+# 0 on a-ok; 1 on read error; 10+ for device condition warnings (overtemp or reboot)
 #
 # aside: MAXTEMP is available in the subshell, as the latter is a forked copy
 # of the parent (if there were an exec involved, export would be required)
@@ -87,7 +86,7 @@ get_shelly_status() {
       printf -v t "%.0f" "$temperature" # zero decimal places (i.e. int())
       if (( t > MAXTEMP )); then
         echo "high temperature ($t>$MAXTEMP)" >&2
-        exit 100
+        exit 11
       fi
 
       exit 0
@@ -109,26 +108,31 @@ rc=$?
 log "$rc" "${shelly_status[*]}"
 
 if (( rc == 0 )); then
-  # update state
+  # a-ok
   errcount=0
   uptime="${shelly_status[0]}"
-else
-  errcount=$((errcount+1))
-  # ntfy only on a diminishing sequence of errors (errcount == 2^n-1)
-  # - the bitwise AND will be 0/false only when errcount is about to step up to the next bit boundary, e.g. 1, 3, 7, 15, ...
-  if ! (( (errcount + 1) & errcount )); then
-    t="$SHELLY [$HOSTNAME]"
-    # report shelly_status error message(s)
-    m="${shelly_status[*]} errcount=$errcount"
-    headers=(-H "X-Title: ${t}")
-    if (( rc >= 100 )); then
-        headers+=(-H "Priority: high" -H "Tags: warning")
-    fi
-    curl_output=$(curl_opts "${headers[@]}" -d "$m" "$NTFY" 2>&1)
-    curl_rc=$?
-    if (( curl_rc != 0 )); then
-      log "ntfy failed: $curl_rc" "$curl_output"
-    fi
+  exit 0
+fi
+
+if (( rc >= 10 )); then  # got valid shelly_status, update uptime
+  uptime="${shelly_status[0]}"
+fi
+
+errcount=$((errcount+1))
+# ntfy only on a diminishing sequence of errors (errcount == 2^n-1)
+# - the bitwise AND will be 0/false only when errcount is about to step up to the next bit boundary, e.g. 1, 3, 7, 15, ...
+if ! (( (errcount + 1) & errcount )); then
+  t="$SHELLY [$HOSTNAME]"
+  # report shelly_status error message(s)
+  m="${shelly_status[*]} errcount=$errcount"
+  headers=(-H "X-Title: ${t}")
+  if (( rc >= 100 )); then
+      headers+=(-H "Priority: high" -H "Tags: warning")
+  fi
+  curl_output=$(curl_opts "${headers[@]}" -d "$m" "$NTFY" 2>&1)
+  curl_rc=$?
+  if (( curl_rc != 0 )); then
+    log "ntfy failed: $curl_rc" "$curl_output"
   fi
 fi
 
