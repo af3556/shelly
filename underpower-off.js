@@ -50,9 +50,9 @@ This script:
 // - switch IDs are 0-based (i.e. 0-3 for the Pro4PM) though they're labelled on
 //   the device as 1-4
 // - a timeout of 0 would technically not work: Shelly reports the switch
-//   turning on and the load current as two separate events (which switch state
-//   first), so the moment a switch is turned the load is likely to be zero; the
-//   fix is to defer the decision until after at least one power notification
+//   turning on and the load current as two separate events (with switch state
+//   first), the moment a switch is turned on the load is likely to be reported as 0;
+//   the fix is to defer the decision until after at least one power notification
 //   has arrived (i.e. when we do have all the necessary info)
 //   - this is represented as an output state of 'waiting'
 //   - an alternative approach would be to just hard-code a minimum period but
