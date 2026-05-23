@@ -199,7 +199,7 @@ function _notifyWrite(byTimer) {
   // we just sent one and now have to wait the full interval)
   // _notificationIntervalCountInterval is effectively the 'time' in increments
   // of interval until the next call; so convert time remaining to counts
-  var interval = Math.max(0, Math.min(remaining, interval));
+  interval = Math.max(0, Math.min(remaining, interval));
   //_log('_notifyWrite', interval, 'qlen=' + _notifyQueue.queue.length);
   _notificationIntervalCount = interval*1000/_logQueue.interval;
 }
