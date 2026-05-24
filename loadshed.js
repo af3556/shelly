@@ -6,11 +6,11 @@ Device: Pro4PM 1.4.4| 679fcca9
 
 A "software circuit breaker": four loads are connected to each channel of a
 Pro4PM; one is the primary load that ideally would never be disconnected, the
-other three are lower priority and idle _most_ of the time. The circuit the
-Pro4PM is downstream of does not have sufficient capacity to handle all four
-loads on at "full bore" at the same time, and in the extreme can only supply the
-primary load. However most of the time, the sum of the loads is well under the
-circuit capacity so most of the time, all four can happily operate.
+other three are lower priority and idle _most_ of the time. The circuit upstream
+of the Pro4PM is not rated to handle all four loads on at full power draw at the
+same time, and in the extreme can only supply the primary load. Whilst most of the
+time the sum of all loads is well under the circuit capacity and all four can
+happily operate, supervision is required to avoid tripping out the upstream breaker.
 
 In numbers (all on a nominal 230V system):
 - the upstream circuit breaker is rated to 16A
