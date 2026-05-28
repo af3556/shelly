@@ -78,7 +78,7 @@ var CONFIG = {
 var switchState = {
   output: null,   // last known switch output State (null, true, false, 'waiting')
   apower: 0,      // last known `apower` reading
-  timer: 0        // timestamp of last on or idle transition
+  transitionTime: 0   // timestamp of last on or idle transition
 }
 
 // use uptime as the epoch (it's always available; unixtime requires NTP)
@@ -154,7 +154,7 @@ function _getSwitchState() {
   _log('_getSwitchState status=', JSON.stringify(status));
   switchState.output = status.output;
   switchState.apower = status.apower;
-  switchState.timer = currentTime;
+  switchState.transitionTime = currentTime;
 }
 
 // update switch state with current output state (on/off)
@@ -166,10 +166,10 @@ function _updateSwitchOutput(notifyStatus) {
   // !== true is not necessarily === false (e.g. on init, where output is null);
   // just want to determine a _change_
   if (switchState.output !== output) {    // an edge transition
-    // reset the timer when turning on ('on/off edge transition')
+    // reset the transitionTime when turning on ('on/off edge transition')
     if (output === true) {  // was off, now on
-      _log('_updateSwitchOutput reset timer (and waiting for power update)');
-      switchState.timer = currentTime;
+      _log('_updateSwitchOutput reset transitionTime (and waiting for power update)');
+      switchState.transitionTime = currentTime;
       output = 'waiting'; // await an apower notification
     }
   }
@@ -188,9 +188,9 @@ function _updateSwitchPower(notifyStatus) {
 
   if (_isPowerIdle() !== idlePrev) {   // an edge transition
     if (idlePrev === false) {
-      // reset the idle timer on transition from not-idle to idle
-      _log('_updateSwitchPower reset timer');
-      switchState.timer = currentTime;
+      // reset the idle transitionTime on transition from not-idle to idle
+      _log('_updateSwitchPower reset transitionTime');
+      switchState.transitionTime = currentTime;
     } else {
       _log('_updateSwitchPower no longer waiting');
       switchState.output = true; // would have been 'waiting'
@@ -199,7 +199,7 @@ function _updateSwitchPower(notifyStatus) {
 }
 
 function _isTimeExpired() {
-  return currentTime - switchState.timer >= CONFIG.timeout;
+  return currentTime - switchState.transitionTime >= CONFIG.timeout;
 }
 function _isPowerIdle() {
   return switchState.apower < CONFIG.threshold;
@@ -225,7 +225,7 @@ function statusHandler(notifyStatus) {
 
   switch (switchState.output) { // JS switch uses strict equality
     case true:  // on
-      _log('on p=', switchState.apower, ' dt=', currentTime - switchState.timer);
+      _log('on p=', switchState.apower, ' dt=', currentTime - switchState.transitionTime);
       if (_isPowerIdle() && _isTimeExpired()) {
         _log('idle, timer expired: turning off');
         Shelly.call('Switch.Set', { id: CONFIG.switchId, on: false }, _callbackLogError);
