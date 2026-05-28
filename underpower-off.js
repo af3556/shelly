@@ -49,17 +49,17 @@ This script:
 // configure these as desired:
 // - switch IDs are 0-based (i.e. 0-3 for the Pro4PM) though they're labelled on
 //   the device as 1-4
-// - a timeout of 0 would technically not work: Shelly reports the switch
-//   turning on and the load current as two separate events (with switch state
-//   first), the moment a switch is turned on the load is likely to be reported as 0;
-//   the fix is to defer the decision until after at least one power notification
-//   has arrived (i.e. when we do have all the necessary info)
-//   - this is represented as an output state of 'waiting'
-//   - an alternative approach would be to just hard-code a minimum period but
-//     there's no guarantee when a power update will arrive and it's usually
-//     >7-8s for the Pro4PM
+// - timeout: when the load power drops below the threshold for longer than the timeout, the load
+//   is considered idle and the output turned off; note the timer is reset every time the output
+//   is switched on or load rises above the threshold
+// - ("usually" in the following means as observed, but not documemnted as such)
+// - a timeout of 0 (turning off immediately the moment power drops below threshold) is problematic
+//   as Shelly (usually) reports the switch turning on and the load current as two separate events
+//   ((usually) with switch state first), the moment a switch is turned on the load is likely to be
+//   reported in that notification as 0; have to defer the "is idle" decision until after at least
+//   one power notification has arrived after a switch on
 var CONFIG = {
-  switchId: 0,    // switch to monitor
+  switchId: 3,    // switch to monitor
   threshold: 50,  // idle threshold (Watts)
   timeout: 0,     // timeout (seconds) (0 = ASAP)
   log: true       // enable/disable logging
@@ -75,10 +75,11 @@ var CONFIG = {
 // view of the device's actual state as at the last change time
 // - an alternative approach could just query all the necessary bits every
 //   callback, but where's the fun in that #efficiency
+// - state initialised in _getSwitchState
 var switchState = {
-  output: null,   // last known switch output State (null, true, false, 'waiting')
-  apower: 0,      // last known `apower` reading
-  transitionTime: 0   // timestamp of last on or idle transition
+  output: null,   // last known switch output State (true, false)
+  idle: null,     // last known idle (apower < threshold) (true, false)
+  transitionTime: null   // timestamp of last idle transition
 }
 
 // use uptime as the epoch (it's always available; unixtime requires NTP)
@@ -147,62 +148,51 @@ function _callbackLogError(result, errorCode, errorMessage) {
   }
 }
 
-// 'init' switch state when the script is starting up with no or constant load,
-// where statusHandler hasn't been called for the switch yet
-function _getSwitchState() {
-  var status = Shelly.getComponentStatus('Switch', CONFIG.switchId);
-  _log('_getSwitchState status=', JSON.stringify(status));
-  switchState.output = status.output;
-  switchState.apower = status.apower;
+// update switch state with current power
+function _updateSwitchIdle(notifyStatus) {
+  // `delta.apower` notifications are sent on load changes _and_ switch output
+  // state changes (even when power remains 0)
+  var apower = _get(notifyStatus, 'delta.apower');
+  if (!_notnullish(apower)) return;  // not a delta.apower update
+  _log('_updateSwitchIdle apower=', JSON.stringify(apower));
+
+  var idle = apower < CONFIG.threshold;
+
+  // no change, then nothing to do
+  if (switchState.idle === idle) return;
+
+  _log('_updateSwitchIdle changed, idle=', idle);
+
+  // it may be tempting to force the output state here to be on if apower > 0, however risks
+  // falsely claiming the output is on when we may just be receiving a (late) apower update
+  // after the switch has been turned off
+
+  switchState.idle = idle;
   switchState.transitionTime = currentTime;
 }
 
-// update switch state with current output state (on/off)
+// update switch state with current output state (on/off); takes priority over _updateSwitchIdle
 function _updateSwitchOutput(notifyStatus) {
   var output = _get(notifyStatus, 'delta.output');
   if (!_notnullish(output)) return;  // not a delta.output update
   _log('_updateSwitchOutput output=', JSON.stringify(output));
 
-  // !== true is not necessarily === false (e.g. on init, where output is null);
-  // just want to determine a _change_
-  if (switchState.output !== output) {    // an edge transition
-    // reset the transitionTime when turning on ('on/off edge transition')
-    if (output === true) {  // was off, now on
-      _log('_updateSwitchOutput reset transitionTime (and waiting for power update)');
-      switchState.transitionTime = currentTime;
-      output = 'waiting'; // await an apower notification
-    }
-  }
+  // no change, then nothing to do
+  if (switchState.output === output) return;
+
+  _log('_updateSwitchOutput changed');  // output reported above
+
+  // though the load may actually be < threshold (incl. 0) we won't know for sure until receiving
+  // an apower update, in the meantime "turned on" means - by definition - not-idle (and for 
+  // completeness, turned off means idle)
+  switchState.idle = !output;
+
   switchState.output = output;
-}
-
-// update switch state with current power
-function _updateSwitchPower(notifyStatus) {
-  // `delta.apower` notifications are sent on load changes _and_ switch output
-  // state changes (even when power remains 0)
-  var apower = _get(notifyStatus, 'delta.apower');
-  if (!_notnullish(apower)) return;  // not a delta.apower update
-  _log('_updateSwitchPower apower=', JSON.stringify(apower));
-  var idlePrev = _isPowerIdle();
-  switchState.apower = apower;
-
-  if (_isPowerIdle() !== idlePrev) {   // an edge transition
-    if (idlePrev === false) {
-      // reset the idle transitionTime on transition from not-idle to idle
-      _log('_updateSwitchPower reset transitionTime');
-      switchState.transitionTime = currentTime;
-    } else {
-      _log('_updateSwitchPower no longer waiting');
-      switchState.output = true; // would have been 'waiting'
-    }
-  }
+  switchState.transitionTime = currentTime;
 }
 
 function _isTimeExpired() {
   return currentTime - switchState.transitionTime >= CONFIG.timeout;
-}
-function _isPowerIdle() {
-  return switchState.apower < CONFIG.threshold;
 }
 
 
@@ -215,34 +205,37 @@ function statusHandler(notifyStatus) {
   // use uptime and not unixtime; the latter won't be available without NTP
   currentTime = Shelly.getComponentStatus('Sys').uptime;
 
-  // the notification will be _one of_: an `output` notification, an `apower`
-  // notification, or 'something else'
+  // extract whatever's available in the notification
+  // - the notification will be _one of_: an `output` notification, an `apower`
+  //   notification, or 'something else' (e.g. heartbeat)
   // - some notifications may include both switch `output` and `apower` info
   //   (e.g. when a switch is turned on), this could be leveraged to eliminate
-  //   some processing but for the sake of simplicity we'll KISS
-  _updateSwitchPower(notifyStatus);
-  _updateSwitchOutput(notifyStatus);
+  //   some processing but we'll KISS
+  _updateSwitchIdle(notifyStatus);
+  _updateSwitchOutput(notifyStatus); // may also update idle; priority over _updateSwitchIdle
 
-  switch (switchState.output) { // JS switch uses strict equality
-    case true:  // on
-      _log('on p=', switchState.apower, ' dt=', currentTime - switchState.transitionTime);
-      if (_isPowerIdle() && _isTimeExpired()) {
-        _log('idle, timer expired: turning off');
-        Shelly.call('Switch.Set', { id: CONFIG.switchId, on: false }, _callbackLogError);
-      }
-      break;
-    case 'waiting':
-      // fall through
-    case false: // off; nothing to do
-      break;
-    default:
-      // when the script starts up with a constant load output (incl. 0), we won't
-      // see any `delta.output` or `delta.apower` notifications (only
-      // hearbeats), have to "manually" get the current state
-      // this should happen only once; no need to invoke on every iteration
-      _getSwitchState();
+  if (switchState.output) {
+    _log('on idle=', switchState.idle, ' dt=', currentTime - switchState.transitionTime);
+    if (switchState.idle && _isTimeExpired()) {
+      _log('idle and timer expired: turning off');
+      Shelly.call('Switch.Set', { id: CONFIG.switchId, on: false }, _callbackLogError);
+    }
   }
   _log(JSON.stringify(switchState));
+}
+
+// initialise switch state; called when the script is starting up with a constant load (incl. 0)
+function _getSwitchState() {
+  var status = Shelly.getComponentStatus('Switch', CONFIG.switchId);
+  _log('_getSwitchState status=', JSON.stringify(status));
+  if (!status) {
+    console.log('_getSwitchState: failed to get status for switch ' + CONFIG.switchId);
+    return false;
+  }
+  switchState.output = status.output;
+  switchState.idle = status.apower < CONFIG.threshold;
+  switchState.transitionTime = currentTime;
+  return true;
 }
 
 function init() {
@@ -251,7 +244,14 @@ function init() {
     // could easily be moved to an existing timer callback
     Timer.set(_logQueue.interval, true, _logWrite);
   }
-  Shelly.addStatusHandler(statusHandler);
+
+  currentTime = Shelly.getComponentStatus('Sys').uptime;
+
+  // when the script starts up with a constant load output (incl. 0), we won't see any
+  // `delta.output` or `delta.apower` notifications (only hearbeats); have to manually get the
+  // current state to ensure we have a sane initial state
+  // - if the initial get state fails, we're done
+  if (_getSwitchState()) Shelly.addStatusHandler(statusHandler);
 }
 
 init();
