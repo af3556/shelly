@@ -105,7 +105,7 @@ function _log() {
   // workaround: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/arguments
   if (!CONFIG.log) return;
   if (_logQueue.queue.length < _logQueue.maxSize) {
-    _logQueue.queue.push(arguments.join(' '));
+    _logQueue.queue.push(arguments.join(''));
   } else {
     console.log('_log: overflow!!'); // you may or may not actually get to see this
   }

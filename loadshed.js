@@ -165,7 +165,7 @@ function _logWrite() {
 function _log() {
   if (!CONFIG.log) return;
   if (_logQueue.queue.length < _logQueue.maxSize) {
-    _logQueue.queue.push(arguments.join(' '));
+    _logQueue.queue.push(arguments.join(''));
   } else {
     console.log('_log: overflow!!'); // you may or may not actually get to see this
   }
@@ -183,7 +183,7 @@ function _notifyWrite(byTimer) {
     (_notifyQueue.queue.length / _notifyQueue.maxSize)) + _notifyQueue.notifyIntervalMin;
   var remaining = interval - (currentTime - _lastNotificationTime);
   if (byTimer || remaining < 0) { // go, go gadget
-    //_log('_notifyWrite by', (byTimer ? 'timer' : 'flush:' + remaining),
+    //_log('_notifyWrite by ', (byTimer ? 'timer' : 'flush:' + remaining),
     //  'qlen=' + _notifyQueue.queue.length);
     // there shouldn't be a situation where we get here with an empty queue
     // but handle it anyway
@@ -200,7 +200,7 @@ function _notifyWrite(byTimer) {
   // _notificationIntervalCountInterval is effectively the 'time' in increments
   // of interval until the next call; so convert time remaining to counts
   interval = Math.max(0, Math.min(remaining, interval));
-  //_log('_notifyWrite', interval, 'qlen=' + _notifyQueue.queue.length);
+  //_log('_notifyWrite ', interval, ' qlen=' + _notifyQueue.queue.length);
   _notificationIntervalCount = interval*1000/_logQueue.interval;
 }
 
@@ -218,7 +218,7 @@ function _notify() {
   if (_notifyQueue.queue.length >= _notifyQueue.maxSize) {
     // delete the 0'th message, (attempt to) report it
     var m = _notifyQueue.queue.splice(0, 1)[0];
-    _log('_notify overflow:', JSON.stringify(m));
+    _log('_notify overflow: ', JSON.stringify(m));
   }
   _notifyQueue.queue.push(message);
   _notifyWrite(); // service the queue if possible (attempt a write 'asap'
@@ -260,7 +260,7 @@ function _get(obj, path) {
 function _callbackLogError(result, errorCode, errorMessage) {
   if (errorCode != 0) {
     // not _log: always report actual errors (well, assuming not rate limited)
-    console.log('call failed: ', errorCode, errorMessage);
+    console.log('call failed: [', errorCode, '] ', errorMessage);
   }
 }
 
@@ -271,8 +271,8 @@ function _getloadState() {
   for (var i = 0; i < CONFIG.switchPriority.length; i++) {
     var switchId = CONFIG.switchPriority[i];
     status = Shelly.getComponentStatus('Switch', switchId);
-    _log('_getloadState priority=' + i, 'sw ID=' + switchId,
-        'status.current=' + status.current, 'status.output=' + status.output);
+    _log('_getloadState priority=' + i, ' sw ID=' + switchId,
+        ' status.current=' + status.current, ' status.output=' + status.output);
     loadState.current[switchId] = status.current;
     loadState.output[switchId] = status.output;
   }
@@ -281,14 +281,14 @@ function _getloadState() {
 function _updateLoadStatePower(notifyStatus) {
   var switchId = notifyStatus.id;
   var current = _get(notifyStatus, 'delta.current');
-  //_log('_updateLoadStatePower', switchId, JSON.stringify(current));
+  //_log('_updateLoadStatePower ', switchId, ' ', JSON.stringify(current));
   if (_notnullish(current)) {
     loadState.current[switchId] = current;
     // current measurement can have an offset error, not totally unexpected
     // for a device to be off yet still report a _small_ current; however
     // anything not-small is a problem
     if (current > 0.1 && !loadState.output[switchId]) {
-      _log('WARN output', switchId, 'is off yet current='+current);
+      _log('WARN output ', switchId, ' is off yet current='+current);
     }
   }
 }
@@ -296,7 +296,7 @@ function _updateLoadStatePower(notifyStatus) {
 function _updateLoadStateOutput(notifyStatus) {
   var switchId = notifyStatus.id;
   var output = _get(notifyStatus, 'delta.output');
-  //_log('_updateLoadStateOutput', switchId, JSON.stringify(output));
+  //_log('_updateLoadStateOutput', switchId, ' ', JSON.stringify(output));
   if (_notnullish(output)) loadState.output[switchId] = output;
 }
 
@@ -310,7 +310,7 @@ function _checkInterlock() {
   for (var i = 0; i < loadState.output.length; i++) {
     // skip the primary as we don't care if it's on or not
     if (i == CONFIG.switchPriority[0]) continue;
-    //_log('_checkInterlock', i, '=', loadState.output[i]);
+    //_log('_checkInterlock ', i, '=', loadState.output[i]);
     if (loadState.output[i]) switchesOn.push(i);
   }
   var switchNames = [];
@@ -318,12 +318,12 @@ function _checkInterlock() {
     var switchId = switchesOn[i];
     switchNames.push(deviceConfig.switchNames[switchId] + ' (' + loadState.current[switchId] + 'A)');
   }
-  //_log('_checkInterlock', switchesOn);
+  //_log('_checkInterlock ', switchesOn);
   if (switchesOn.length > 1) {
-    _notify('Multiple secondary devices are on:', switchNames.join(', '));
+    _notify('Multiple secondary devices are on: ', switchNames.join(', '));
     _interlockNotificationPosted = true;
   } else if (_interlockNotificationPosted) {
-    _notify('Multiple secondary devices cleared; on:', switchNames.join(', '));
+    _notify('Multiple secondary devices cleared; on: ', switchNames.join(', '));
     _interlockNotificationPosted = false;
   }
 }
@@ -332,7 +332,7 @@ function _checkInterlock() {
 function _sumCurrents() {
   var sum = 0;
   for (var i = 0; i < loadState.current.length; i++) {
-    //_log('_sumCurrents', i, 'current=' + loadState.current[i]);
+    //_log('_sumCurrents ', i, ' current=' + loadState.current[i]);
     sum += loadState.current[i];
   }
   return sum;
@@ -380,16 +380,16 @@ function updateStatus(notifyStatus) {
   if (_notnullish(_get(notifyStatus, 'delta.aenergy'))) return;
   if (notifyStatus.name !== 'switch') return;
 
-  //_log('updateStatus', JSON.stringify(notifyStatus));
+  //_log('updateStatus ', JSON.stringify(notifyStatus));
 
   // pull out all available info
   _updateLoadStateOutput(notifyStatus);
   _updateLoadStatePower(notifyStatus);
-  //_log('loadState', JSON.stringify(loadState));
+  //_log('loadState ', JSON.stringify(loadState));
 
   _checkInterlock();  // warn on >2 devices being on at once
   var totalCurrent = _sumCurrents();
-  _log('doChecks', 'totalCurrent=' + totalCurrent);
+  _log('doChecks ', 'totalCurrent=' + totalCurrent);
   if (totalCurrent > CONFIG.currentMax) {
     _shedLoad(totalCurrent);
   }
@@ -466,7 +466,7 @@ function init() {
   // executed via a separate periodic timer
 
   _getloadState();
-  _log('loadState', JSON.stringify(loadState));
+  _log('loadState ', JSON.stringify(loadState));
   Shelly.addStatusHandler(updateStatus);
   _notify('script start');
 }
