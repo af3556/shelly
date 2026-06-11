@@ -216,8 +216,8 @@ function _initSwitchState() {
   }
   switchState.output = status.output;
   switchState.power = status.apower;
-  // consider current trigger state when the script starts
-  switchState.held = CONFIG.holdoff && !CONFIG.trigger(switchState.power);
+  // the output may already be on at script start; holdoff still applies
+  switchState.held = CONFIG.holdoff;
   _log(JSON.stringify(switchState));
   return true;
 }
